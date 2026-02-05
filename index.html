@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARENA 3.0 - R2/Circle Patch</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --overlay-color: rgba(10, 10, 10, 0.96);
+            --accent: #00ffcc;
+            --danger: #ff4444;
+            --ffa: #bd00ff;
+            --ctf: #ffaa00;
+            --exp: #ffd700;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            user-select: none;
+            cursor: crosshair;
+        }
+
+        /* --- UI OVERLAYS --- */
+        .overlay {
+            position: absolute;
+            z-index: 10;
+            text-align: center;
+            background: var(--overlay-color);
+            padding: 2.5rem;
+            border: 2px solid var(--accent);
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(0, 255, 204, 0.2);
+            min-width: 550px;
+        }
+
+        h1 { font-size: 3.5rem; margin: 0 0 1rem 0; color: var(--accent); letter-spacing: 4px; text-transform: uppercase; }
+        
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 25px;
+            background: #1e1e1e;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .stat-col { display: flex; flex-direction: column; gap: 5px; font-size: 0.9rem; align-items: center; }
+        .stat-col h3 { margin: 0; color: #888; font-size: 0.7rem; text-transform: uppercase; }
+        
+        .btn-group { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 15px;}
+
+        button {
+            padding: 15px 15px;
+            font-size: 1rem;
+            cursor: pointer;
+            background: transparent;
+            color: white;
+            border: 2px solid white;
+            border-radius: 6px;
+            transition: 0.2s;
+            text-transform: uppercase;
+            font-weight: bold;
+            flex: 1;
+            min-width: 100px;
+        }
+
+        button:hover { transform: translateY(-3px); }
+
+        /* Mode Colors */
+        button.sumo-btn:hover { background: var(--accent); border-color: var(--accent); color: black; box-shadow: 0 0 15px var(--accent); }
+        button.fight-btn { border-color: var(--danger); }
+        button.fight-btn:hover { background: var(--danger); border-color: var(--danger); color: white; box-shadow: 0 0 15px var(--danger); }
+        button.ffa-btn { border-color: var(--ffa); }
+        button.ffa-btn:hover { background: var(--ffa); border-color: var(--ffa); color: white; box-shadow: 0 0 15px var(--ffa); }
+        button.ctf-btn { border-color: var(--ctf); }
+        button.ctf-btn:hover { background: var(--ctf); border-color: var(--ctf); color: black; box-shadow: 0 0 15px var(--ctf); }
+
+        #prestige-btn { display: none; border-color: var(--exp); color: var(--exp); width: 100%; margin-top: 10px; }
+        #prestige-btn:hover { background: var(--exp); color: black; box-shadow: 0 0 20px var(--exp); }
+
+        /* --- GAME HUD --- */
+        canvas {
+            background: #222;
+            border-bottom: 5px solid #444;
+            box-shadow: 0 0 50px rgba(0,0,0,0.7);
+            display: none;
+        }
+
+        #ui-hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: none;
+            pointer-events: none;
+        }
+
+        .hud-row { display: flex; justify-content: space-between; align-items: flex-start; }
+        
+        #player-stats { font-size: 1.2rem; text-shadow: 2px 2px 0 #000; display: flex; align-items: center; gap: 10px; }
+        #level-indicator { color: var(--accent); font-weight: bold; font-size: 1.5rem; }
+
+        /* XP BAR */
+        #xp-container {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 20px;
+            background: #444;
+            border: 2px solid white;
+            border-radius: 5px;
+            overflow: hidden;
+            display: none;
+        }
+        #xp-fill { height: 100%; width: 0%; background: var(--exp); transition: width 0.2s; position: absolute; z-index: 1; }
+        #xp-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            line-height: 20px;
+            font-size: 0.8rem;
+            color: white;
+            font-weight: bold;
+            z-index: 2;
+            text-shadow: 1px 1px 2px black;
+        }
+        
+        #ctf-score {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 1.5rem;
+            font-weight: bold;
+            display: none;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 20px;
+            border-radius: 20px;
+            border: 1px solid white;
+        }
+        
+        #combo-display {
+            position: absolute;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 3rem;
+            color: var(--exp);
+            font-weight: 900;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+            display: none;
+            animation: pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes pop {
+            0% { transform: translateX(-50%) scale(0.5); opacity: 0; }
+            100% { transform: translateX(-50%) scale(1); opacity: 1; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="menu-overlay" class="overlay">
+        <h1>ARENA 3.0</h1>
+        
+        <div class="stat-grid">
+            <div class="stat-col">
+                <h3>Sumo</h3>
+                <span id="stat-sumo">Lvl 1</span>
+            </div>
+            <div class="stat-col">
+                <h3>Fight</h3>
+                <span id="stat-fight">Lvl 1</span>
+            </div>
+            <div class="stat-col">
+                <h3 style="color: var(--ffa)">FFA</h3>
+                <span id="stat-ffa">Lvl 1</span>
+            </div>
+            <div class="stat-col">
+                <h3 style="color: var(--ctf)">CTF</h3>
+                <span id="stat-ctf">Lvl 1</span>
+            </div>
+        </div>
+        
+        <div class="btn-group">
+            <button class="sumo-btn" onclick="startGame('SUMO')">Sumo (No Heal)</button>
+            <button class="fight-btn" onclick="startGame('FIGHT')">Fight</button>
+            <button class="ffa-btn" onclick="startGame('FFA')">FFA</button>
+            <button class="ctf-btn" onclick="startGame('CTF')">Capture Flag</button>
+        </div>
+
+        <button id="prestige-btn" onclick="prestige()">PRESTIGE CURRENT MODE (Reset & Buff)</button>
+        
+        <p style="font-size: 0.8rem; margin-top: 20px; color: #888; line-height: 1.6;">
+            <strong>Controls:</strong> WASD/Arrows to Move, Mouse to Aim/Click. E to Heal.<br>
+            <strong>Gamepad:</strong> Sticks to Move/Aim. X(A) Jump, R2 Hit, Circle(B) Heal.
+        </p>
+    </div>
+
+    <div id="round-overlay" class="overlay" style="display: none;">
+        <h2 id="round-result">VICTORY</h2>
+        <p id="xp-gained-text" style="color: var(--exp); margin-bottom: 20px;">+100 XP</p>
+        <div class="btn-group">
+            <button onclick="restartRound()">NEXT GAME</button>
+            <button onclick="goToMenu()">MENU</button>
+        </div>
+    </div>
+
+    <div id="ui-hud">
+        <div class="hud-row">
+            <div id="player-stats">
+                <div id="level-indicator">LVL 1</div>
+            </div>
+            <div id="mode-display" style="color: #666; font-weight: bold;">SUMO</div>
+        </div>
+    </div>
+
+    <div id="ctf-score">
+        BLUE: <span id="score-blue" style="color: #00ffcc">0</span>/3 | RED: <span id="score-red" style="color: #ff4444">0</span>/3
+    </div>
+
+    <div id="combo-display">x4 COMBO!</div>
+
+    <div id="xp-container">
+        <div id="xp-fill"></div>
+        <div id="xp-text">0 / 100 XP</div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+/** CONFIGURATION */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+canvas.width = 900;
+canvas.height = 500;
+
+// Physics
+const GRAVITY = 0.6;
+const FRICTION = 0.85;
+const GROUND_Y = 400;
+
+// Game State
+let currentPlatformWidth = 600;
+let currentPlatformX = 100;
+let cameraX = 0;
+let gameActive = false;
+let gameMode = 'SUMO'; 
+let particles = [];
+let damageNumbers = [];
+let mouseX = 0, mouseY = 0;
+let roundOver = false;
+let player, enemies = [];
+let teammates = [];
+
+// CTF Specifics
+let flags = [];
+let blueScore = 0;
+let redScore = 0;
+const CAPTURE_LIMIT = 3;
+
+// Combo System
+let comboCount = 0;
+let comboTimer = 0;
+
+// Inputs
+const keys = {};
+let prevHealKey = false;
+let isGamepadActive = false;
+
+// Progression
+const defaultStats = { level: 1, xp: 0, xpToNext: 100, prestige: 0, damageMult: 1, knockbackMult: 1 };
+let saveFile = {
+    SUMO: { ...defaultStats },
+    FIGHT: { ...defaultStats },
+    FFA: { ...defaultStats },
+    CTF: { ...defaultStats }
+};
+
+// XP Values
+const XP_KILL = 20;
+const XP_WIN = 70;
+const XP_CAPTURE = 50;
+const XP_HIT = 5;
+
+/**
+ * CLASS: ENTITY
+ */
+class Square {
+    constructor(x, y, color, isPlayer, id, team = 'NONE') {
+        this.id = id;
+        this.x = x;
+        this.y = y;
+        this.spawnX = x; // Store for CTF reset
+        this.spawnY = y;
+        this.width = 40;
+        this.height = 40;
+        this.color = color;
+        this.baseColor = color;
+        this.team = team;
+        this.dx = 0;
+        this.dy = 0;
+        
+        // Stats
+        const stats = saveFile[gameMode];
+        this.isPlayer = isPlayer;
+        
+        // HP Calculation
+        if (isPlayer) this.maxHp = 100 + (stats.prestige * 20);
+        else this.maxHp = 100 + (stats.level * 10);
+        
+        if (gameMode === 'CTF') this.maxHp = 100; // Normalized HP for CTF
+
+        this.hp = this.maxHp;
+        this.speed = 1.5;
+        this.jumpPower = -12;
+        this.isGrounded = false;
+        
+        // Combat
+        this.aimAngle = 0;
+        this.attackTimer = 0;
+        this.hitFlashTimer = 0;
+        this.dead = false;
+        this.hasFlag = false;
+    }
+
+    draw() {
+        if (this.dead) return;
+
+        // Draw Badge
+        let pLevel = 0;
+        if (this.isPlayer) pLevel = saveFile[gameMode].prestige;
+        else if (gameMode !== 'CTF') pLevel = Math.floor(saveFile[gameMode].level / 20);
+
+        if (pLevel > 0) drawBadge(ctx, this.x + 20, this.y - 25, pLevel);
+
+        // Draw Entity
+        ctx.fillStyle = this.hitFlashTimer > 0 ? 'white' : this.color;
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        if (this.hitFlashTimer > 0) this.hitFlashTimer--;
+
+        // Flag Visual
+        if (this.hasFlag) {
+            ctx.fillStyle = 'gold'; 
+            ctx.beginPath();
+            ctx.moveTo(this.x + 10, this.y);
+            ctx.lineTo(this.x + 10, this.y - 30);
+            ctx.lineTo(this.x + 30, this.y - 20);
+            ctx.lineTo(this.x + 10, this.y - 10);
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // Health Bar
+        const hpPercent = Math.max(0, this.hp / this.maxHp);
+        ctx.fillStyle = '#333';
+        ctx.fillRect(this.x, this.y - 10, this.width, 6);
+        ctx.fillStyle = this.team === 'BLUE' || (this.isPlayer && this.team === 'NONE') ? '#00ffcc' : '#ff4444';
+        ctx.fillRect(this.x, this.y - 10, this.width * hpPercent, 6);
+
+        // Weapon
+        ctx.save();
+        ctx.translate(this.x + 20, this.y + 20);
+        ctx.rotate(this.aimAngle);
+        ctx.fillStyle = this.attackTimer > 10 ? 'white' : 'rgba(255,255,255,0.5)';
+        if (this.attackTimer > 10) ctx.fillRect(20, -4, 40, 8);
+        else ctx.fillRect(20, -2, 30, 4);
+        ctx.restore();
+    }
+
+    update() {
+        if (this.dead) return;
+
+        // Apply Physics
+        this.dy += GRAVITY;
+        this.y += this.dy;
+        this.x += this.dx;
+        this.dx *= FRICTION;
+
+        // Debuffs for Flag Carrier
+        let moveSpeed = this.speed;
+        if (this.hasFlag) moveSpeed *= 0.8;
+        
+        if(this.dx > 10) this.dx = 10;
+        if(this.dx < -10) this.dx = -10;
+
+        // Floor Collision
+        const onPlatformX = this.x + 40 > currentPlatformX && this.x < currentPlatformX + currentPlatformWidth;
+        if (onPlatformX && this.y + 40 >= GROUND_Y && this.y + 40 <= GROUND_Y + 20) {
+            this.y = GROUND_Y - 40;
+            this.dy = 0;
+            this.isGrounded = true;
+        } else {
+            this.isGrounded = false;
+        }
+
+        // Walls
+        if (gameMode !== 'SUMO') {
+            if (this.x < currentPlatformX) { this.x = currentPlatformX; this.dx = 0; }
+            if (this.x + 40 > currentPlatformX + currentPlatformWidth) { this.x = currentPlatformX + currentPlatformWidth - 40; this.dx = 0; }
+        }
+
+        // Cooldowns
+        if (this.attackTimer > 0) this.attackTimer--;
+
+        // Death
+        if (this.y > GROUND_Y + 400) handleDeath(this, "void");
+        if (this.hp <= 0) handleDeath(this, "kill");
+    }
+
+    attack() {
+        if (this.dead || this.attackTimer > 0) return;
+        this.attackTimer = 15;
+
+        const cx = this.x + 20, cy = this.y + 20;
+        const hitX = cx + Math.cos(this.aimAngle) * 50;
+        const hitY = cy + Math.sin(this.aimAngle) * 50;
+
+        // Targets
+        let targets = [];
+        if (this.team === 'NONE') {
+            targets = enemies;
+            if(!this.isPlayer) targets = [player, ...enemies.filter(e=>e!==this)];
+        } else if (this.team === 'BLUE') {
+            targets = enemies;
+        } else {
+            targets = [player, ...teammates];
+        }
+
+        targets.forEach(t => {
+            if (t.dead) return;
+            const tcx = t.x + 20, tcy = t.y + 20;
+            if (Math.hypot(hitX - tcx, hitY - tcy) < 50) {
+                
+                // Damage Calc
+                let stats = saveFile[gameMode];
+                let dmg = 8;
+                let kb = 15;
+
+                if (this.isPlayer) {
+                    dmg = 8 * stats.damageMult;
+                    kb = 15 * stats.knockbackMult;
+                    
+                    comboCount++;
+                    comboTimer = 60;
+                    updateComboUI();
+                    
+                    let xpAmount = XP_HIT;
+                    if (comboCount > 3) {
+                          xpAmount *= 2; 
+                          spawnDamageNumber(t.x, t.y - 30, "2x XP!", '#ffd700');
+                    }
+                    addXP(xpAmount);
+                } else {
+                    dmg = 5 + (stats.level * 0.5);
+                    kb = 12;
+                }
+
+                if (t.hasFlag) dmg *= 1.5;
+
+                t.hp -= dmg;
+                t.dx = Math.cos(this.aimAngle) * kb;
+                t.dy = Math.sin(this.aimAngle) * kb;
+                if (Math.abs(Math.sin(this.aimAngle)) < 0.2) t.dy -= 5;
+
+                t.hitFlashTimer = 5;
+                spawnDamageNumber(t.x, t.y, Math.floor(dmg), 'white');
+                createParticles(t.x + 20, t.y + 20, 8, 'white');
+
+                if (t.hp <= 0 && !t.dead && this.isPlayer) {
+                    addXP(XP_KILL);
+                }
+            }
+        });
+    }
+
+    heal() {
+        if (gameMode === 'SUMO') {
+            if (this.isPlayer) spawnDamageNumber(this.x, this.y-10, "NO HEAL!", "red");
+            return; 
+        }
+        if (this.dead) return;
+        if (this.hp < this.maxHp) {
+            this.hp += 1.5;
+            spawnDamageNumber(this.x, this.y - 10, "+", "#00ff00");
+        }
+    }
+}
+
+/**
+ * GAMEPLAY SYSTEMS
+ */
+
+function updateCombo() {
+    if (comboTimer > 0) {
+        comboTimer--;
+        if (comboTimer <= 0) {
+            comboCount = 0;
+            updateComboUI();
+        }
+    }
+}
+
+function updateComboUI() {
+    const el = document.getElementById('combo-display');
+    if (comboCount > 1) {
+        el.style.display = 'block';
+        el.innerText = `x${comboCount} COMBO!`;
+        if (comboCount > 3) el.style.color = '#ff0055'; 
+        else el.style.color = '#ffd700';
+    } else {
+        el.style.display = 'none';
+    }
+}
+
+function handleDeath(entity, cause) {
+    if (entity.dead) return;
+    entity.dead = true;
+    entity.hp = 0;
+    createParticles(entity.x, entity.y, 20, entity.color);
+
+    // Drop Flag
+    if (gameMode === 'CTF' && entity.hasFlag) {
+        entity.hasFlag = false;
+        flags.forEach(f => {
+            if (f.carrier === entity) {
+                f.carrier = null;
+                f.x = f.baseX;
+                f.y = f.baseY;
+                spawnDamageNumber(entity.x, entity.y, "FLAG DROPPED", "orange");
+            }
+        });
+    }
+
+    if (gameMode === 'CTF') {
+        setTimeout(() => {
+            if (!roundOver && gameActive) {
+                entity.dead = false;
+                entity.hp = entity.maxHp;
+                entity.x = entity.spawnX;
+                entity.y = entity.spawnY;
+                entity.dx = 0; entity.dy = 0;
+                createParticles(entity.x, entity.y, 20, '#fff');
+            }
+        }, 3000);
+    } else {
+        if (entity.isPlayer) {
+            setTimeout(() => showRoundOver(false), 500);
+        } else {
+            // Check if all enemies dead
+            const aliveEnemies = enemies.filter(e => !e.dead).length;
+            if (aliveEnemies === 0) setTimeout(() => showRoundOver(true), 1000);
+        }
+    }
+}
+
+/**
+ * CTF LOGIC
+ */
+function updateCTF() {
+    if (gameMode !== 'CTF' || roundOver) return;
+
+    flags.forEach(flag => {
+        if (flag.carrier) {
+            flag.x = flag.carrier.x + 10;
+            flag.y = flag.carrier.y - 40;
+            
+            // Check Capture Condition
+            // Blue Base is Left. Red Base is Right.
+            // If BLUE player has RED flag and is at BLUE base
+            if (flag.team === 'RED' && flag.carrier.team === 'BLUE') {
+                if (flag.carrier.x < currentPlatformX + 150) {
+                    captureFlag('BLUE', flag);
+                }
+            } 
+            // If RED player has BLUE flag and is at RED base
+            else if (flag.team === 'BLUE' && flag.carrier.team === 'RED') {
+                if (flag.carrier.x > currentPlatformX + currentPlatformWidth - 150) {
+                    captureFlag('RED', flag);
+                }
+            }
+        } else {
+            // Pickup
+            [player, ...teammates, ...enemies].forEach(ent => {
+                if (ent.dead || ent.hasFlag) return;
+                
+                // Can only pick up ENEMY flag
+                if (ent.team !== flag.team) {
+                    if (Math.hypot(ent.x - flag.x, ent.y - flag.y) < 40) {
+                        flag.carrier = ent;
+                        ent.hasFlag = true;
+                        spawnDamageNumber(ent.x, ent.y, "STOLEN!", "white");
+                    }
+                }
+            });
+            
+            // Draw Ground Flag
+            ctx.fillStyle = flag.team === 'BLUE' ? '#00ffcc' : '#ff4444';
+            ctx.fillRect(flag.x, flag.y, 10, 40);
+            ctx.fillStyle = 'gold';
+            ctx.fillRect(flag.x, flag.y, 20, 15);
+        }
+    });
+}
+
+function captureFlag(team, flag) {
+    flag.carrier.hasFlag = false;
+    flag.carrier = null;
+    flag.x = flag.baseX;
+    flag.y = flag.baseY; 
+    
+    createParticles(flag.baseX, flag.baseY, 50, 'gold');
+    
+    if (team === 'BLUE') {
+        blueScore++;
+        addXP(XP_CAPTURE);
+        spawnDamageNumber(player.x, player.y - 50, "CAPTURED!", "#ffd700");
+    } else {
+        redScore++;
+        spawnDamageNumber(player.x, player.y - 50, "ENEMY CAPTURED!", "red");
+    }
+    
+    updateScoreBoard();
+    
+    if (blueScore >= CAPTURE_LIMIT) {
+        showRoundOver(true);
+    } else if (redScore >= CAPTURE_LIMIT) {
+        showRoundOver(false);
+    } else {
+        softResetPositions();
+    }
+}
+
+function softResetPositions() {
+    // Reset positions but keep scores and stats
+    [player, ...teammates, ...enemies].forEach(ent => {
+        ent.x = ent.spawnX;
+        ent.y = ent.spawnY;
+        ent.dx = 0;
+        ent.dy = 0;
+        ent.hp = ent.maxHp;
+        ent.dead = false;
+        ent.hasFlag = false;
+    });
+    
+    // Reset Flags
+    flags.forEach(f => {
+        f.carrier = null;
+        f.x = f.baseX;
+        f.y = f.baseY;
+    });
+
+    spawnDamageNumber(player.x, player.y - 100, "RESETTING...", "white");
+}
+
+function updateScoreBoard() {
+    document.getElementById('score-blue').innerText = blueScore;
+    document.getElementById('score-red').innerText = redScore;
+}
+
+/**
+ * AI
+ */
+function updateAI() {
+    let allBots = [...enemies];
+    if (gameMode === 'CTF') allBots = [...enemies, ...teammates];
+
+    allBots.forEach(bot => {
+        if (bot.dead) return;
+
+        let target = null;
+
+        if (gameMode === 'CTF') {
+            if (bot.hasFlag) {
+                // Run to base
+                let baseX = (bot.team === 'BLUE') ? currentPlatformX : currentPlatformX + currentPlatformWidth;
+                if (bot.x > baseX) bot.dx -= bot.speed;
+                else bot.dx += bot.speed;
+            } else {
+                let enemyFlag = flags.find(f => f.team !== bot.team);
+                if (enemyFlag.carrier) {
+                    target = enemyFlag.carrier; 
+                } else {
+                    if (bot.x > enemyFlag.x) bot.dx -= bot.speed;
+                    else bot.dx += bot.speed;
+                }
+            }
+        } else {
+            // Kill Logic
+            let targets = (bot.team === 'NONE') 
+                ? [player, ...enemies].filter(e => e !== bot && !e.dead) 
+                : [];
+            
+            let closest = null; 
+            let minDist = 9999;
+            targets.forEach(t => {
+                let d = Math.hypot(t.x - bot.x, t.y - bot.y);
+                if(d < minDist) { minDist = d; closest = t; }
+            });
+            target = closest;
+        }
+
+        if (target) {
+            if (bot.x > target.x + 40) bot.dx -= bot.speed * 0.8;
+            else if (bot.x < target.x - 40) bot.dx += bot.speed * 0.8;
+            
+            bot.aimAngle = Math.atan2((target.y + 20) - (bot.y + 20), (target.x + 20) - (bot.x + 20));
+            
+            if (Math.hypot(target.x - bot.x, target.y - bot.y) < 80 && Math.random() < 0.05) {
+                bot.attack();
+            }
+        }
+
+        if (Math.random() < 0.015 && bot.isGrounded) bot.dy = bot.jumpPower;
+        
+        // NO HEALING IN SUMO
+        if (gameMode !== 'SUMO' && bot.hp < 40 && Math.random() < 0.05) bot.heal();
+    });
+}
+
+function pollGamepad() {
+    const gp = navigator.getGamepads()[0];
+    if (!gp) return;
+
+    isGamepadActive = true;
+    const axisThreshold = 0.2;
+
+    // Movement (Left Stick)
+    if (Math.abs(gp.axes[0]) > axisThreshold) {
+        player.dx += gp.axes[0] * player.speed;
+    }
+
+    // Aiming (Right Stick)
+    if (Math.abs(gp.axes[2]) > axisThreshold || Math.abs(gp.axes[3]) > axisThreshold) {
+        player.aimAngle = Math.atan2(gp.axes[3], gp.axes[2]);
+    }
+
+    // Buttons (Standard Map: 0=A/X, 1=B/Circle, 2=X/Sq, 3=Y/Tri, 7=R2)
+    
+    // 0: Jump (X/A)
+    if (gp.buttons[0].pressed && player.isGrounded) {
+        player.dy = player.jumpPower;
+    }
+    
+    // CHANGED: Attack is now R2 (Button 7)
+    if (gp.buttons[7] && gp.buttons[7].pressed) {
+        player.attack();
+    }
+
+    // CHANGED: Heal is now Circle/B (Button 1)
+    if (gp.buttons[1].pressed && !prevHealBtn) {
+        player.heal();
+        prevHealBtn = true;
+    } else if (!gp.buttons[1].pressed) {
+        prevHealBtn = false;
+    }
+}
+let prevHealBtn = false;
+
+/**
+ * DRAWING HELPERS
+ */
+function drawBadge(ctx, x, y, level) {
+    ctx.save();
+    ctx.translate(x, y);
+    
+    let color = '#cd7f32'; 
+    if (level >= 2) color = '#c0c0c0'; 
+    if (level >= 3) color = '#ffd700'; 
+    if (level >= 5) color = '#b9f2ff'; 
+    
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+        ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * 10,
+                   -Math.sin((18 + i * 72) * Math.PI / 180) * 10);
+        ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * 5,
+                   -Math.sin((54 + i * 72) * Math.PI / 180) * 5);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
+    ctx.restore();
+}
+
+/**
+ * CORE LOOP
+ */
+function gameLoop() {
+    if (!gameActive) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Camera
+    if (gameMode === 'FFA' || gameMode === 'CTF') {
+        let targetCam = (player.x + 20) - canvas.width / 2;
+        let maxCam = (currentPlatformX + currentPlatformWidth + 200) - canvas.width;
+        let minCam = currentPlatformX - 200;
+        targetCam = Math.max(minCam, Math.min(targetCam, maxCam));
+        cameraX += (targetCam - cameraX) * 0.1;
+    } else {
+        cameraX = 0;
+    }
+
+    ctx.save();
+    ctx.translate(-cameraX, 0);
+
+    // Platform
+    ctx.fillStyle = '#444';
+    ctx.fillRect(currentPlatformX, GROUND_Y, currentPlatformWidth, 10);
+    
+    if (gameMode === 'CTF') {
+        ctx.fillStyle = 'rgba(0, 255, 204, 0.2)';
+        ctx.fillRect(currentPlatformX, GROUND_Y - 100, 100, 100); 
+        ctx.fillStyle = 'rgba(255, 68, 68, 0.2)';
+        ctx.fillRect(currentPlatformX + currentPlatformWidth - 100, GROUND_Y - 100, 100, 100); 
+    }
+
+    handleInputs();
+    pollGamepad();
+    updateAI();
+    updateCombo();
+    updateCTF();
+
+    [player, ...teammates, ...enemies].forEach(e => { e.update(); e.draw(); });
+    
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.dx; p.y += p.dy; p.life--;
+        ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 4, 4);
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+    
+    ctx.font = "bold 20px Arial";
+    for (let i = damageNumbers.length - 1; i >= 0; i--) {
+        let d = damageNumbers[i];
+        d.y += d.dy; d.life--;
+        ctx.fillStyle = d.color; ctx.fillText(d.value, d.x, d.y);
+        if (d.life <= 0) damageNumbers.splice(i, 1);
+    }
+
+    ctx.restore();
+    requestAnimationFrame(gameLoop);
+}
+
+/**
+ * SETUP & UI
+ */
+function handleInputs() {
+    if (player.dead) return;
+    
+    if (keys['ArrowLeft'] || keys['KeyA']) player.dx -= player.speed;
+    if (keys['ArrowRight'] || keys['KeyD']) player.dx += player.speed;
+    if ((keys['Space'] || keys['KeyW']) && player.isGrounded) player.dy = player.jumpPower;
+
+    if (!isGamepadActive) {
+        const rect = canvas.getBoundingClientRect();
+        const worldMouseX = (mouseX - rect.left) + cameraX;
+        player.aimAngle = Math.atan2(mouseY - rect.top - (player.y + 20), worldMouseX - (player.x + 20));
+    }
+
+    if (keys['KeyE']) {
+        if (!prevHealKey) { player.heal(); prevHealKey = true; }
+    } else prevHealKey = false;
+}
+
+window.addEventListener('mousemove', e => { 
+    mouseX = e.clientX; mouseY = e.clientY; 
+    isGamepadActive = false; 
+});
+window.addEventListener('mousedown', () => { player.attack(); isGamepadActive = false; });
+window.addEventListener('keydown', e => keys[e.code] = true);
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+function startGame(mode) {
+    gameMode = mode;
+    document.getElementById('menu-overlay').style.display = 'none';
+    canvas.style.display = 'block';
+    document.getElementById('ui-hud').style.display = 'block';
+    document.getElementById('xp-container').style.display = 'block';
+    
+    if (mode === 'CTF') document.getElementById('ctf-score').style.display = 'block';
+    else document.getElementById('ctf-score').style.display = 'none';
+
+    restartRound();
+}
+
+function restartRound() {
+    document.getElementById('round-overlay').style.display = 'none';
+    roundOver = false;
+    gameActive = true;
+    
+    enemies = [];
+    teammates = [];
+    flags = [];
+    blueScore = 0;
+    redScore = 0;
+    comboCount = 0;
+    updateScoreBoard();
+    updateComboUI();
+
+    if (gameMode === 'FFA' || gameMode === 'CTF') {
+        currentPlatformWidth = 2000;
+        currentPlatformX = -550;
+    } else {
+        currentPlatformWidth = 600;
+        currentPlatformX = (canvas.width - 600) / 2;
+    }
+
+    player = new Square(currentPlatformX + 100, GROUND_Y - 50, '#00ffcc', true, 'p1', gameMode === 'CTF' ? 'BLUE' : 'NONE');
+
+    if (gameMode === 'CTF') {
+        teammates.push(new Square(currentPlatformX + 50, GROUND_Y - 50, '#00ffcc', false, 't1', 'BLUE'));
+        enemies.push(new Square(currentPlatformX + currentPlatformWidth - 100, GROUND_Y - 50, '#ff4444', false, 'e1', 'RED'));
+        enemies.push(new Square(currentPlatformX + currentPlatformWidth - 150, GROUND_Y - 50, '#ff4444', false, 'e2', 'RED'));
+
+        flags.push({ x: currentPlatformX + 50, y: GROUND_Y - 40, baseX: currentPlatformX + 50, baseY: GROUND_Y - 40, team: 'BLUE', carrier: null });
+        flags.push({ x: currentPlatformX + currentPlatformWidth - 50, y: GROUND_Y - 40, baseX: currentPlatformX + currentPlatformWidth - 50, baseY: GROUND_Y - 40, team: 'RED', carrier: null });
+    
+    } else if (gameMode === 'FFA') {
+        for(let i=0; i<4; i++) enemies.push(new Square(currentPlatformX + 300 + (i*300), GROUND_Y - 50, '#bd00ff', false, 'b'+i, 'NONE'));
+    } else {
+        enemies.push(new Square(currentPlatformX + currentPlatformWidth - 100, GROUND_Y - 50, '#ff4444', false, 'b1', 'NONE'));
+    }
+
+    gameLoop();
+}
+
+function showRoundOver(win) {
+    if (roundOver) return;
+    roundOver = true;
+    gameActive = false; // Stop physics loop
+    
+    const overlay = document.getElementById('round-overlay');
+    overlay.style.display = 'block';
+    
+    let title = document.getElementById('round-result');
+    if (win) {
+        title.innerText = "VICTORY";
+        title.style.color = "#00ffcc";
+        addXP(XP_WIN);
+    } else {
+        title.innerText = "DEFEAT";
+        title.style.color = "#ff4444";
+    }
+    updateUI();
+    saveGame();
+}
+
+function addXP(amt) {
+    let s = saveFile[gameMode];
+    if (s.level >= 50) return;
+    s.xp += amt;
+    if (s.xp >= s.xpToNext) {
+        s.xp -= s.xpToNext;
+        s.level++;
+        s.xpToNext = Math.floor(100 + (s.level * 30));
+        s.damageMult += 0.05;
+        spawnDamageNumber(player.x, player.y - 60, "LEVEL UP!", "#ffd700");
+    }
+    updateUI();
+}
+
+function createParticles(x, y, count, color) {
+    for(let i=0; i<count; i++) {
+        particles.push({
+            x: x, y: y,
+            dx: (Math.random() - 0.5) * 10,
+            dy: (Math.random() - 0.5) * 10,
+            life: 20,
+            color: color
+        });
+    }
+}
+
+function prestige() {
+    let didPrestige = false;
+    for (let key in saveFile) {
+        if (saveFile[key].level >= 10) {
+            saveFile[key].prestige++;
+            saveFile[key].level = 1;
+            saveFile[key].xp = 0;
+            saveFile[key].damageMult += 0.5;
+            didPrestige = true;
+        }
+    }
+    if (didPrestige) { alert("Prestige Successful!"); saveGame(); updateUI(); }
+    else alert("Reach Level 10 in any mode to Prestige!");
+}
+
+function goToMenu() {
+    document.getElementById('round-overlay').style.display = 'none';
+    document.getElementById('menu-overlay').style.display = 'block';
+    canvas.style.display = 'none';
+    document.getElementById('ui-hud').style.display = 'none';
+    document.getElementById('xp-container').style.display = 'none';
+    document.getElementById('ctf-score').style.display = 'none';
+    updateUI();
+}
+
+function updateUI() {
+    ['SUMO', 'FIGHT', 'FFA', 'CTF'].forEach(m => {
+        let p = saveFile[m].prestige;
+        let badge = p > 0 ? (p > 2 ? '⭐' : '★') : '';
+        document.getElementById(`stat-${m.toLowerCase()}`).innerText = `Lvl ${saveFile[m].level} ${badge}`;
+    });
+    
+    let curr = saveFile[gameMode];
+    document.getElementById('level-indicator').innerText = `LVL ${curr.level}`;
+    document.getElementById('mode-display').innerText = gameMode;
+
+    // XP Bar
+    const xpPercent = (curr.xp / curr.xpToNext) * 100;
+    document.getElementById('xp-fill').style.width = `${xpPercent}%`;
+    document.getElementById('xp-text').innerText = `${Math.floor(curr.xp)} / ${curr.xpToNext} XP`;
+}
+
+function spawnDamageNumber(x, y, value, color) {
+    damageNumbers.push({ x: x, y: y, dy: -1, life: 30, value: value, color: color });
+}
+
+function saveGame() {
+    localStorage.setItem('arena3_save', JSON.stringify(saveFile));
+}
+
+// Try load
+const stored = localStorage.getItem('arena3_save');
+if(stored) saveFile = JSON.parse(stored);
+updateUI();
+
+</script>
+</body>
+</html>
